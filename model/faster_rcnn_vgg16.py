@@ -1,12 +1,14 @@
-from __future__ import  absolute_import
+from __future__ import absolute_import
+
 import torch as t
+from model.faster_rcnn import FasterRCNN
+from model.region_proposal_network import RegionProposalNetwork
+from model.roi_module import RoIPooling2D
 from torch import nn
 from torchvision.models import vgg16
-from model.region_proposal_network import RegionProposalNetwork
-from model.faster_rcnn import FasterRCNN
-from model.roi_module import RoIPooling2D
-from utils import array_tool as at
 from utils.config import opt
+
+from utils import array_tool as at
 
 
 def decom_vgg16():
@@ -59,7 +61,6 @@ class FasterRCNNVGG16(FasterRCNN):
                  ratios=[0.5, 1, 2],
                  anchor_scales=[8, 16, 32]
                  ):
-                 
         extractor, classifier = decom_vgg16()
 
         rpn = RegionProposalNetwork(
@@ -137,7 +138,7 @@ class VGG16RoIHead(nn.Module):
         indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
         # NOTE: important: yx->xy
         xy_indices_and_rois = indices_and_rois[:, [0, 2, 1, 4, 3]]
-        indices_and_rois =  xy_indices_and_rois.contiguous()
+        indices_and_rois = xy_indices_and_rois.contiguous()
 
         pool = self.roi(x, indices_and_rois)
         pool = pool.view(pool.size(0), -1)

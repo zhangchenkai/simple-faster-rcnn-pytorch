@@ -1,12 +1,15 @@
-from __future__ import  absolute_import
-from __future__ import  division
-import torch as t
-from data.voc_dataset import VOCBboxDataset
-from skimage import transform as sktsf
-from torchvision import transforms as tvtsf
-from data import util
+from __future__ import absolute_import
+from __future__ import division
+
 import numpy as np
+import torch as t
+from data.fabric_dataset import FabricDataset
+from skimage import transform as sktsf
+from torch.utils.data import Dataset
+from torchvision import transforms as tvtsf
 from utils.config import opt
+
+from data import util
 
 
 def inverse_normalize(img):
@@ -22,8 +25,15 @@ def pytorch_normalze(img):
     https://github.com/pytorch/vision/issues/223
     return appr -1~1 RGB
     """
-    normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
+
+    # # from ImageNet dataset
+    # normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
+    #                             std=[0.229, 0.224, 0.225])
+
+    # from fabric dataset
+    normalize = tvtsf.Normalize(mean=[0.42500839162393106, 0.4312864842299281, 0.4532897121313082],
+                                std=[0.2754760652259374, 0.27217915717937696, 0.2648634023926214])
+
     img = normalize(t.from_numpy(img))
     return img.numpy()
 
@@ -64,7 +74,8 @@ def preprocess(img, min_size=600, max_size=1000):
     scale2 = max_size / max(H, W)
     scale = min(scale1, scale2)
     img = img / 255.
-    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
+    if scale != 1:
+        img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect', anti_aliasing=False).astype(np.float32)
     # both the longer and shorter should be less than
     # max_size and min_size
     if opt.caffe_pretrain:
@@ -97,33 +108,32 @@ class Transform(object):
         return img, bbox, label, scale
 
 
-class Dataset:
-    def __init__(self, opt):
+class TrainDataset(Dataset):
+    def __init__(self, opt, p_id, split='train'):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir)
+        # self.db = VOCBboxDataset(opt.data_dir)
+        self.db = FabricDataset(opt.data_dir, p_id=p_id, split=split)
         self.tsf = Transform(opt.min_size, opt.max_size)
 
     def __getitem__(self, idx):
-        ori_img, bbox, label, difficult = self.db.get_example(idx)
+        ori_img, bbox, label = self.db.get_example(idx)
 
         img, bbox, label, scale = self.tsf((ori_img, bbox, label))
-        # TODO: check whose stride is negative to fix this instead copy all
-        # some of the strides of a given numpy array are negative.
         return img.copy(), bbox.copy(), label.copy(), scale
 
     def __len__(self):
         return len(self.db)
 
 
-class TestDataset:
-    def __init__(self, opt, split='test', use_difficult=True):
+class TestDataset(Dataset):
+    def __init__(self, opt, p_id, split='test'):
         self.opt = opt
-        self.db = VOCBboxDataset(opt.voc_data_dir, split=split, use_difficult=use_difficult)
+        self.db = FabricDataset(opt.data_dir, p_id=p_id, split=split)
 
     def __getitem__(self, idx):
-        ori_img, bbox, label, difficult = self.db.get_example(idx)
+        ori_img, bbox, label = self.db.get_example(idx)
         img = preprocess(ori_img)
-        return img, ori_img.shape[1:], bbox, label, difficult
+        return img, ori_img.shape[1:], bbox, label
 
     def __len__(self):
         return len(self.db)

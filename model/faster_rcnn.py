@@ -1,23 +1,26 @@
-from __future__ import  absolute_import
+from __future__ import absolute_import
 from __future__ import division
-import torch as t
-import numpy as np
+
 import cupy as cp
-from utils import array_tool as at
+import numpy as np
+import torch as t
+from data.dataset import preprocess
 from model.utils.bbox_tools import loc2bbox
 from model.utils.nms import non_maximum_suppression
-
 from torch import nn
-from data.dataset import preprocess
 from torch.nn import functional as F
 from utils.config import opt
 
+from utils import array_tool as at
+
 
 def nograd(f):
-    def new_f(*args,**kwargs):
+    def new_f(*args, **kwargs):
         with t.no_grad():
-           return f(*args,**kwargs)
+            return f(*args, **kwargs)
+
     return new_f
+
 
 class FasterRCNN(nn.Module):
     """Base class for Faster R-CNN.
@@ -69,9 +72,9 @@ class FasterRCNN(nn.Module):
     """
 
     def __init__(self, extractor, rpn, head,
-                loc_normalize_mean = (0., 0., 0., 0.),
-                loc_normalize_std = (0.1, 0.1, 0.2, 0.2)
-    ):
+                 loc_normalize_mean=(0., 0., 0., 0.),
+                 loc_normalize_std=(0.1, 0.1, 0.2, 0.2)
+                 ):
         super(FasterRCNN, self).__init__()
         self.extractor = extractor
         self.rpn = rpn
@@ -184,7 +187,7 @@ class FasterRCNN(nn.Module):
         return bbox, label, score
 
     @nograd
-    def predict(self, imgs,sizes=None,visualize=False):
+    def predict(self, imgs, sizes=None, visualize=False):
         """Detect objects from images.
 
         This method predicts objects for each image.
@@ -223,14 +226,14 @@ class FasterRCNN(nn.Module):
                 prepared_imgs.append(img)
                 sizes.append(size)
         else:
-             prepared_imgs = imgs 
+            prepared_imgs = imgs
         bboxes = list()
         labels = list()
         scores = list()
         for img, size in zip(prepared_imgs, sizes):
             img = at.totensor(img[None]).float()
             scale = img.shape[3] / size[1]
-            roi_cls_loc, roi_scores, rois, _ = self(img, scale=scale)
+            roi_cls_loc, roi_scores, rois, _ = self.forward(img, scale=scale)
             # We are assuming that batch size is 1.
             roi_score = roi_scores.data
             roi_cls_loc = roi_cls_loc.data
@@ -291,7 +294,3 @@ class FasterRCNN(nn.Module):
         for param_group in self.optimizer.param_groups:
             param_group['lr'] *= decay
         return self.optimizer
-
-
-
-
